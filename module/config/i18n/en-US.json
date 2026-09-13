@@ -1417,6 +1417,10 @@
       "name": "Delay when oil falls below X",
       "help": "Delay the task when oil is too low, continue sortie when oil is sufficient"
     },
+    "OilLimitHardFloor": {
+      "name": "Oil stop floor",
+      "help": "Actual stop threshold is max(floor, oil limit). 500 is a legacy safety net; lower it if you run low-cost maps and want to drain oil further. Set 0 to make oil limit take effect directly"
+    },
     "CoinLimit": {
       "name": "Delay when coins reach X",
       "help": "Delay the current task when coins are found to be at or above this number. The task will resume after coins drop below the limit.\n0 means no coin limit"
@@ -1600,7 +1604,7 @@
     },
     "AutoSearchMode": {
       "name": "Select submarine auto plan",
-      "help": "Only takes effect when using auto-search",
+      "help": "Applies to auto search sorties. With manual enemy search and \"standby\", in-game sub auto call is also turned off before entering (cleared maps only; the setting page does not exist on uncleared maps)",
       "sub_standby": "Standby",
       "sub_auto_call": "Auto-summon submarine"
     },
@@ -6668,6 +6672,9 @@
       "InvalidFeedBack": "Format error. Example: {0}",
       "Clear": "Clear",
       "RunNow": "Run Now",
+      "RunNowSchedulerStopped": "Scheduler is not running. Start it with the switch above or on the overview page.",
+      "RunNowTaskDisabled": "Task is not enabled. Turn on its scheduler before running now.",
+      "SchedulerQuickBar": "Scheduler",
       "EnterPassword": "Enter password",
       "ChooseFile": "Select file"
     },
