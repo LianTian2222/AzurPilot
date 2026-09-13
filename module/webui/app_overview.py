@@ -25,13 +25,13 @@ from module.webui.material_sliders import (
 
 from module.webui.app_dependencies import (
     BinarySwitchButton,
+    pin_on_change,
     LogRes,
     RichLog,
     deep_iter,
     get_device_id,
     get_localstorage,
     json,
-    pin,
     put_buttons,
     put_button,
     put_html,
@@ -90,6 +90,10 @@ from module.webui.app_types import WebUIMixinBase
 
 class OverviewMixin(WebUIMixinBase):
     """WebUI实例概览和守护模式"""
+
+    # 自定义网址输入框的 pin_on_change 是否已绑定。
+    # 背景页会被反复重画，重绑会让同一个输入叠加多个回调、保存多次。
+    _bg_urls_bound = False
 
     def _render_log_panel(self) -> None:
         """渲染日志面板到「logs」作用域，并注册日志相关周期任务。
@@ -189,15 +193,18 @@ class OverviewMixin(WebUIMixinBase):
         # 必须 eval_js：run_js 不等脚本执行就返回，会被后续 DOM 更新冲掉
         eval_js(self._overview_panel_visibility_js())
 
-    def _save_background_urls(self) -> None:
+    def _save_background_urls(self, value: Optional[str] = None) -> None:
         """保存自定义背景网址，并立即换上新背景。
 
-        保存后重新抽签并重新注入样式：否则本会话还缓存着启动时那张
-        （通常是主题内置），用户会觉得“保存了没反应”。
+        由输入框的 ``pin_on_change`` 触发，不靠按钮。
+
+        Args:
+            value: textarea 的当前内容；非字符串（后台线程重画等）则退回草稿。
         """
+        if isinstance(value, str):
+            self._background_url_draft = value
         set_background_urls(self._background_url_draft or [])
         self._apply_background()
-        self._render_background_page()
 
     @staticmethod
     def _apply_background() -> None:
@@ -320,21 +327,30 @@ class OverviewMixin(WebUIMixinBase):
         所以重画走 :meth:`_background_page_widgets_static`。
         """
         return self._background_page_widgets_static(
-            self._on_background_action)
+            self._on_background_action,
+            lambda value: self._save_background_urls(value))
 
     @staticmethod
-    def _background_page_widgets_static(onclick) -> list:
+    def _background_page_widgets_static(onclick, onchange) -> list:
         """构建背景页内容（不依赖实例，后台线程可用）。
 
         Args:
             onclick: 按钮回调。必须传绑定的实例方法：未绑定的类函数会被
                 PyWebIO 把按钮值当成 self 传进来，action 永远是空（实测）。
+            onchange: 自定义网址 textarea 的回调，输入后立即落盘。
         """
         choice = session_choice() or pick_background()
         n_local = len(list_images())
         n_urls = len(get_background_urls())
         status = OverviewMixin._background_status()
         direct = OverviewMixin._display_url(current_direct_url(choice))
+        # 必须用 pin_on_change：other_html_attrs 会把 Python 回调字符串化，
+        # 写成 onchange= 属性不会触发。重画会再次走到这里，
+        # 用标志位防止回调叠加导致重复保存。
+        if not OverviewMixin._bg_urls_bound:
+            pin_on_change(name='bg_urls', onchange=onchange)
+            OverviewMixin._bg_urls_bound = True
+
         return [
             put_markdown(t('Gui.Overview.BackgroundTitle')),
             put_markdown(status),
@@ -399,7 +415,9 @@ class OverviewMixin(WebUIMixinBase):
                 ))
             put_text(t('Gui.Stat.ExtractHint'))
         self._draw_background_page(
-            self._background_page_widgets_static(self._on_background_action))
+            self._background_page_widgets_static(
+                self._on_background_action,
+                lambda value: self._save_background_urls(value)))
 
 
     @staticmethod
@@ -421,14 +439,7 @@ class OverviewMixin(WebUIMixinBase):
 
     def _on_background_action(self, action) -> None:
         """背景页按钮分发。"""
-        if action == 'save':
-            try:
-                self._background_url_draft = pin.bg_urls
-            except Exception:  # noqa: BLE001 - 控件未就绪
-                self._background_url_draft = get_background_urls()
-            self._save_background_urls()
-
-        elif action == 'local':
+        if action == 'local':
             self._open_background_folder()
         elif action == 'extract':
             self._extract_background_image()

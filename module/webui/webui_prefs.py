@@ -2,7 +2,7 @@
 """WebUI 界面偏好持久化。
 
 用于记住纯界面状态（如概览页右栏展示日志还是统计），
-与实例配置解耦：存 ``config/webui_prefs.json``，不污染 ``argument.yaml`` 的配置 schema。
+与实例配置解耦：存 ``cache/webui_prefs.json``，不污染 ``argument.yaml`` 的配置 schema。
 
 对应的浏览器端缓存键见 :data:`LOCALSTORAGE_KEYS`，由前端 ``localStorage`` 镜像一份，
 使服务端文件缺失（如手动清理）时仍能回退到用户上次的选择。
@@ -34,7 +34,11 @@ BACKGROUND_DIR_NAME = 'bg'
 BACKGROUND_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_PREFS_FILE = _PROJECT_ROOT / 'config' / 'webui_prefs.json'
+# 不能放 config/：module/config/utils.py 会把 config/*.json
+# 当成实例配置扫描（alas_instance / is_oobe_needed）。
+_PREFS_FILE = _PROJECT_ROOT / 'cache' / 'webui_prefs.json'
+# 旧位置，升级用户的机器上会残留，导入时迁走。
+_LEGACY_PREFS_FILE = _PROJECT_ROOT / 'config' / 'webui_prefs.json'
 
 
 def resolve_panel(stored: Any, cached: Any) -> str:
@@ -56,16 +60,44 @@ def resolve_panel(stored: Any, cached: Any) -> str:
     return PANEL_DEFAULT
 
 
-def _read_prefs() -> dict:
+def _migrate_legacy_prefs() -> None:
+    """把旧版的 ``config/webui_prefs.json`` 搬到 ``cache/``。
+
+    必须在任何配置扫描之前执行：文件留在 ``config/`` 会被当成实例配置。
+    迁移失败就删掉，宁可丢一条界面偏好，也不能让假实例留在那里。
+    """
+    if not _LEGACY_PREFS_FILE.exists():
+        return
     try:
-        with open(_PREFS_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except FileNotFoundError:
-        return {}
-    except (OSError, ValueError) as e:
-        logger.warning(f'[WebUI-偏好] 读取 {_PREFS_FILE} 失败: {e}')
-        return {}
+        if not _PREFS_FILE.exists():
+            _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _LEGACY_PREFS_FILE.replace(_PREFS_FILE)
+        else:
+            _LEGACY_PREFS_FILE.unlink()
+        logger.info('[WebUI-偏好] 已从 config/ 迁移到 cache/')
+    except OSError as e:
+        logger.warning(f'[WebUI-偏好] 迁移 {_LEGACY_PREFS_FILE} 失败: {e}')
+        try:
+            _LEGACY_PREFS_FILE.unlink()
+        except OSError:
+            pass
+
+
+def _read_prefs() -> dict:
+    for path in (_PREFS_FILE, _LEGACY_PREFS_FILE):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as e:
+            logger.warning(f'[WebUI-偏好] 读取 {path} 失败: {e}')
+            continue
+    return {}
+
+
+_migrate_legacy_prefs()
 
 
 def get_pref(key: str, default: Any = None) -> Any:

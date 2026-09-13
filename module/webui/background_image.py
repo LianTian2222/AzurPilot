@@ -32,6 +32,12 @@ from module.webui.webui_prefs import (
 )
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# 不能放 config/：module/config/utils.py 会把 config/*.json
+# 当成实例配置扫描（alas_instance / is_oobe_needed）。
+_CSS_FILE = _PROJECT_ROOT / 'cache' / 'webui_bg.css'
+# 旧位置，升级用户的机器上会残留，导入时删掉。
+# 不必搬内容：CSS 每次选背景都整份重写。
+_LEGACY_CSS_FILE = _PROJECT_ROOT / 'config' / 'webui_bg.css'
 
 SOURCE_LOCAL = 'local'
 SOURCE_REMOTE = 'remote'
@@ -326,6 +332,21 @@ def background_css(choice: Optional[dict] = None,
     )
 
 
+def _remove_legacy_css() -> None:
+    """删掉旧版落在 ``config/`` 的覆盖 CSS。
+
+    内容由 :func:`background_css_file` 整份生成，删掉不丢信息：
+    下一次选背景会重新写到 ``cache/``。删不动就留着，已经不会被读取。
+    """
+    try:
+        _LEGACY_CSS_FILE.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning(f'[WebUI-背景] 清理 {_LEGACY_CSS_FILE} 失败: {e}')
+
+
+_remove_legacy_css()
+
+
 def background_css_file(choice: Optional[dict] = None) -> Optional[Path]:
     """把覆盖 CSS 写成一个文件，供 :func:`utils.add_css_files` 注入。
 
@@ -333,7 +354,7 @@ def background_css_file(choice: Optional[dict] = None) -> Optional[Path]:
     主题切换时会被 ``_reload_theme_css`` 一并清理重放。
     直接 put_html 到文档里不会进 ``<head>``，选择器根本不生效。
 
-    文件落在 ``config/``（被 gitignore 覆盖），所以启动器同步上游不会碰它。
+    文件落在 ``cache/``（被 gitignore 覆盖），所以启动器同步上游不会碰它。
 
     抽签结果按会话缓存：一张图在一次会话里稳定，主题切换不会重新抽。
     没有缓存时抽一次并记住，因此刷新页面会换一张。
@@ -361,7 +382,7 @@ def background_css_file(choice: Optional[dict] = None) -> Optional[Path]:
         _lock_remote(choice)
         choice['resolved'] = True
     css = background_css(choice, theme_source)
-    path = _PROJECT_ROOT / 'config' / 'webui_bg.css'
+    path = _CSS_FILE
     # 选中的本地图可能已被删（用户清理、测试残留等）：继续用它会写出
     # 一条指向不存在文件的规则，背景直接空白。这种情况回落成「没有自定义
     # 背景」，主题自带的那张照常显示。

@@ -1846,13 +1846,6 @@ button[style*="--menu-Overview--"] {
 	display: inline;
 }
 
-#pywebio-scope-groups > [id^="pywebio-scope-group_"] > p,
-#pywebio-scope-groups > p,
-#pywebio-scope-running > p,
-#pywebio-scope-pending > p,
-#pywebio-scope-waiting > p {
-    text-shadow: var(--alas-card-title-shadow, none);
-}
 
 /* 右栏滚动栏（统计板块 + 日志栏）归「贴片」组，与卡片组脱钩 */
 #pywebio-scope-stat_panels {
