@@ -25,13 +25,13 @@ from module.webui.material_sliders import (
 
 from module.webui.app_dependencies import (
     BinarySwitchButton,
-    pin_on_change,
     LogRes,
     RichLog,
     deep_iter,
     get_device_id,
     get_localstorage,
     json,
+    pin_on_change,
     put_buttons,
     put_button,
     put_html,

@@ -1846,7 +1846,6 @@ button[style*="--menu-Overview--"] {
 	display: inline;
 }
 
-
 /* 右栏滚动栏（统计板块 + 日志栏）归「贴片」组，与卡片组脱钩 */
 #pywebio-scope-stat_panels {
 	background-color: var(--alas-tile-user-bg-outer) !important;
